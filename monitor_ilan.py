@@ -18,6 +18,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from requests.exceptions import SSLError
+from urllib3.exceptions import InsecureRequestWarning
 
 TARGET_URL = os.getenv(
     "TARGET_URL",
@@ -37,11 +39,22 @@ class ListingItem:
 
 
 def fetch_html(url: str) -> str:
-    response = requests.get(
-        url,
-        timeout=45,
-        headers={"User-Agent": USER_AGENT},
-    )
+    try:
+        response = requests.get(
+            url,
+            timeout=45,
+            headers={"User-Agent": USER_AGENT},
+            verify=True,
+        )
+    except SSLError:
+        # ilan.gov.tr sometimes serves an incomplete cert chain for some clients.
+        requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+        response = requests.get(
+            url,
+            timeout=45,
+            headers={"User-Agent": USER_AGENT},
+            verify=False,
+        )
     response.raise_for_status()
     return response.text
 
