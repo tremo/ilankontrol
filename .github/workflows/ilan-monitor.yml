@@ -1,0 +1,44 @@
+name: ilan-monitor
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # Daily 06:00 UTC (09:00 Türkiye)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run monitor
+        env:
+          TARGET_URL: "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&aco=9796&txv=1"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python monitor_ilan.py
+
+      - name: Commit state changes
+        run: |
+          if [ -z "$(git status --porcelain -- state.json)" ]; then
+            echo "No state changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state.json
+          git commit -m "chore: update ilan monitor state"
+          git push
