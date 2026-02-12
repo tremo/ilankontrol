@@ -5,6 +5,11 @@ on:
     - cron: "0 6 * * *" # Daily 06:00 UTC (09:00 Türkiye)
   workflow_dispatch:
     inputs:
+      target_url:
+        description: "Kontrol edilecek ilan sayfasi URL"
+        required: false
+        default: "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&txv=1"
+        type: string
       test_ping:
         description: "Telegram'a test bildirimi gonder"
         required: false
@@ -34,7 +39,7 @@ jobs:
 
       - name: Run monitor
         env:
-          TARGET_URL: "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&aco=9796&txv=1"
+          TARGET_URL: ${{ github.event.inputs.target_url || 'https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&txv=1' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FORCE_TEST_NOTIFICATION: ${{ github.event.inputs.test_ping || 'false' }}
