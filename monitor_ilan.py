@@ -217,6 +217,17 @@ def likely_blocked_response(html: str) -> bool:
     return any(mark in sample for mark in signatures)
 
 
+def is_empty_results_page(html: str) -> bool:
+    sample = html.lower()
+    markers = [
+        "kriterlere uygun ilan bulunam",
+        "ilan bulunamad",
+        "sonuc bulunamad",
+        "0 ilan",
+    ]
+    return any(mark in sample for mark in markers)
+
+
 def load_state(path: Path) -> Dict[str, Dict[str, str]]:
     if not path.exists():
         return {}
@@ -271,6 +282,10 @@ def main() -> None:
         send_telegram("\n\n".join(lines))
 
     if not current_items:
+        if is_empty_results_page(html):
+            print(f"Bilgi: hedef sayfada aktif ilan yok ({TARGET_URL}).")
+            return
+
         hint = " Muhtemel neden: bot korumasi/captcha."
         if not likely_blocked_response(html):
             hint = ""
