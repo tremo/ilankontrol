@@ -134,9 +134,15 @@ def parse_from_links(html: str, base_url: str) -> Dict[str, ListingItem]:
         if path.startswith("/ilan/kategori/"):
             continue
 
-        title = clean_text(anchor.get_text(" ", strip=True))
-        if not title:
-            title = absolute_url
+        raw_text = clean_text(anchor.get_text(" ", strip=True))
+        title_attr = clean_text(anchor.get("title", ""))
+        combined = clean_text(f"{raw_text} {title_attr}")
+
+        # Keep only concrete listing rows, not navigation links.
+        if not re.search(r"ILN\d{5,}", combined, flags=re.IGNORECASE):
+            continue
+
+        title = raw_text or title_attr or absolute_url
 
         item_id = extract_item_id(absolute_url, title)
         parsed[item_id] = ListingItem(item_id=item_id, title=title, url=absolute_url)
@@ -295,7 +301,8 @@ def send_telegram(message: str) -> None:
 def build_message(new_items: list[ListingItem]) -> str:
     lines = [f"Yeni ilan bulundu: {len(new_items)} adet"]
     for item in new_items[:10]:
-        lines.append(f"- {item.title}\n{item.url}")
+        iln = item.item_id if item.item_id.startswith("ILN") else "Bilinmiyor"
+        lines.append(f"- {item.title}\nKod: {iln}\n{item.url}")
     if len(new_items) > 10:
         lines.append(f"... ve {len(new_items) - 10} adet daha")
     return "\n\n".join(lines)
