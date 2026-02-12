@@ -23,7 +23,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 TARGET_URL = os.getenv(
     "TARGET_URL",
-    "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&txv=1",
+    "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&aco=9796&txv=1",
 )
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
@@ -202,6 +202,21 @@ def parse_items(html: str, base_url: str) -> Dict[str, ListingItem]:
     return parse_iln_fallback(html, base_url)
 
 
+def likely_blocked_response(html: str) -> bool:
+    sample = html.lower()
+    signatures = [
+        "captcha",
+        "robot",
+        "cloudflare",
+        "datadome",
+        "forbidden",
+        "access denied",
+        "erişim engellendi",
+        "guvenlik",
+    ]
+    return any(mark in sample for mark in signatures)
+
+
 def load_state(path: Path) -> Dict[str, Dict[str, str]]:
     if not path.exists():
         return {}
@@ -256,7 +271,13 @@ def main() -> None:
         send_telegram("\n\n".join(lines))
 
     if not current_items:
-        warning = "Uyari: hedef sayfadan ilan parse edilemedi; bu kosu atlandi."
+        hint = " Muhtemel neden: bot korumasi/captcha."
+        if not likely_blocked_response(html):
+            hint = ""
+        warning = (
+            f"Uyari: hedef sayfadan ilan parse edilemedi ({TARGET_URL}); bu kosu atlandi."
+            f"{hint}"
+        )
         print(warning)
         if BOT_TOKEN and CHAT_ID:
             try:
