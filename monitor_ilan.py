@@ -23,7 +23,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 TARGET_URL = os.getenv(
     "TARGET_URL",
-    "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&txv=1",
+    "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&aco=9796&txv=1",
 )
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
@@ -338,19 +338,8 @@ def main() -> None:
             print(f"Bilgi: hedef sayfada aktif ilan yok ({TARGET_URL}).")
             return
 
-        hint = " Muhtemel neden: bot korumasi/captcha."
-        if not likely_blocked_response(html):
-            hint = ""
-        warning = (
-            f"Uyari: hedef sayfadan ilan parse edilemedi ({TARGET_URL}); bu kosu atlandi."
-            f"{hint}"
-        )
-        print(warning)
-        if BOT_TOKEN and CHAT_ID:
-            try:
-                send_telegram(warning)
-            except Exception:
-                pass
+        hint = " (muhtemel bot korumasi/captcha)" if likely_blocked_response(html) else ""
+        print(f"Uyari: hedef sayfadan ilan parse edilemedi ({TARGET_URL}){hint}.")
         return
 
     if not previous_state:
