@@ -33,6 +33,12 @@ FORCE_TEST_NOTIFICATION = os.getenv("FORCE_TEST_NOTIFICATION", "").strip().lower
     "yes",
     "on",
 }
+ENABLE_BROWSER_FALLBACK = os.getenv("ENABLE_BROWSER_FALLBACK", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 STATE_FILE = Path("state.json")
 USER_AGENT = "Mozilla/5.0 (compatible; ilan-monitor/1.0)"
 
@@ -63,6 +69,32 @@ def fetch_html(url: str) -> str:
         )
     response.raise_for_status()
     return response.text
+
+
+def fetch_html_with_browser(url: str) -> str | None:
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return None
+
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True, args=["--no-sandbox"])
+            context = browser.new_context(user_agent=USER_AGENT, locale="tr-TR")
+            page = context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            try:
+                page.wait_for_load_state("networkidle", timeout=15000)
+            except Exception:
+                pass
+            # Dynamic list pages may populate late; wait a bit before snapshot.
+            page.wait_for_timeout(4000)
+            html = page.content()
+            context.close()
+            browser.close()
+            return html
+    except Exception:
+        return None
 
 
 def clean_text(raw: str) -> str:
@@ -272,11 +304,24 @@ def build_message(new_items: list[ListingItem]) -> str:
 def main() -> None:
     html = fetch_html(TARGET_URL)
     current_items = parse_items(html, TARGET_URL)
+
+    used_browser_fallback = False
+    if not current_items and ENABLE_BROWSER_FALLBACK:
+        browser_html = fetch_html_with_browser(TARGET_URL)
+        if browser_html:
+            html = browser_html
+            current_items = parse_items(html, TARGET_URL)
+            used_browser_fallback = bool(current_items)
+
     previous_state = load_state(STATE_FILE)
 
     if FORCE_TEST_NOTIFICATION and BOT_TOKEN and CHAT_ID:
         sample = list(current_items.values())[:3]
-        lines = [f"Test bildirimi: sistem aktif. Parse edilen ilan: {len(current_items)}"]
+        lines = [
+            f"Test bildirimi: sistem aktif. Parse edilen ilan: {len(current_items)}",
+            f"Kaynak URL: {TARGET_URL}",
+            f"Browser fallback kullanildi: {'evet' if used_browser_fallback else 'hayir'}",
+        ]
         for item in sample:
             lines.append(f"- {item.title}\n{item.url}")
         send_telegram("\n\n".join(lines))
