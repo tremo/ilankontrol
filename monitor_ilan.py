@@ -23,7 +23,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 TARGET_URL = os.getenv(
     "TARGET_URL",
-    "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&aco=9796&txv=1",
+    "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&txv=1",
 )
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
