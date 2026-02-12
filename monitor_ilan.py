@@ -27,6 +27,12 @@ TARGET_URL = os.getenv(
 )
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+FORCE_TEST_NOTIFICATION = os.getenv("FORCE_TEST_NOTIFICATION", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 STATE_FILE = Path("state.json")
 USER_AGENT = "Mozilla/5.0 (compatible; ilan-monitor/1.0)"
 
@@ -241,6 +247,13 @@ def main() -> None:
     html = fetch_html(TARGET_URL)
     current_items = parse_items(html, TARGET_URL)
     previous_state = load_state(STATE_FILE)
+
+    if FORCE_TEST_NOTIFICATION and BOT_TOKEN and CHAT_ID:
+        sample = list(current_items.values())[:3]
+        lines = [f"Test bildirimi: sistem aktif. Parse edilen ilan: {len(current_items)}"]
+        for item in sample:
+            lines.append(f"- {item.title}\n{item.url}")
+        send_telegram("\n\n".join(lines))
 
     if not current_items:
         warning = "Uyari: hedef sayfadan ilan parse edilemedi; bu kosu atlandi."

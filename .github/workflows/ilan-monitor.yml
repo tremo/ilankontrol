@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: "0 6 * * *" # Daily 06:00 UTC (09:00 Türkiye)
   workflow_dispatch:
+    inputs:
+      test_ping:
+        description: "Telegram'a test bildirimi gonder"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: write
@@ -28,6 +37,7 @@ jobs:
           TARGET_URL: "https://www.ilan.gov.tr/ilan/kategori/1/emlak?aci=68&aco=9796&txv=1"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FORCE_TEST_NOTIFICATION: ${{ github.event.inputs.test_ping || 'false' }}
         run: python monitor_ilan.py
 
       - name: Commit state changes
