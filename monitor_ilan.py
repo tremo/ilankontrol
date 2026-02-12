@@ -106,6 +106,72 @@ def parse_from_links(html: str, base_url: str) -> Dict[str, ListingItem]:
     return parsed
 
 
+def collect_dicts(value: object) -> Iterable[dict]:
+    if isinstance(value, dict):
+        yield value
+        for nested in value.values():
+            yield from collect_dicts(nested)
+        return
+    if isinstance(value, list):
+        for nested in value:
+            yield from collect_dicts(nested)
+
+
+def parse_from_json_ld(html: str, base_url: str) -> Dict[str, ListingItem]:
+    soup = BeautifulSoup(html, "html.parser")
+    parsed: Dict[str, ListingItem] = {}
+
+    for script in soup.select('script[type="application/ld+json"]'):
+        raw = (script.string or script.get_text() or "").strip()
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+
+        for node in collect_dicts(payload):
+            raw_url = node.get("url")
+            if not isinstance(raw_url, str):
+                continue
+
+            absolute_url = urljoin(base_url, raw_url.strip())
+            path = urlparse(absolute_url).path
+            if "/ilan/" not in path or path.startswith("/ilan/kategori/"):
+                continue
+
+            title = node.get("name")
+            if not isinstance(title, str) or not clean_text(title):
+                title = absolute_url
+            title = clean_text(title)
+
+            item_id = extract_item_id(absolute_url, title)
+            parsed[item_id] = ListingItem(item_id=item_id, title=title, url=absolute_url)
+
+    return parsed
+
+
+def parse_from_regex(html: str, base_url: str) -> Dict[str, ListingItem]:
+    parsed: Dict[str, ListingItem] = {}
+    url_patterns = [
+        r"https?://www\.ilan\.gov\.tr/ilan/\d+/[^\s\"'<>]+",
+        r"(?<!kategori)/ilan/\d+/[^\s\"'<>]+",
+    ]
+
+    for pattern in url_patterns:
+        for raw_url in re.findall(pattern, html, flags=re.IGNORECASE):
+            absolute_url = urljoin(base_url, raw_url)
+            path = urlparse(absolute_url).path
+            if "/ilan/" not in path or path.startswith("/ilan/kategori/"):
+                continue
+
+            title = absolute_url
+            item_id = extract_item_id(absolute_url, title)
+            parsed[item_id] = ListingItem(item_id=item_id, title=title, url=absolute_url)
+
+    return parsed
+
+
 def parse_iln_fallback(html: str, base_url: str) -> Dict[str, ListingItem]:
     iln_ids = sorted(set(re.findall(r"ILN\d{5,}", html, flags=re.IGNORECASE)))
     fallback: Dict[str, ListingItem] = {}
@@ -122,7 +188,9 @@ def parse_iln_fallback(html: str, base_url: str) -> Dict[str, ListingItem]:
 
 
 def parse_items(html: str, base_url: str) -> Dict[str, ListingItem]:
-    parsed = parse_from_links(html, base_url)
+    parsed: Dict[str, ListingItem] = {}
+    for parser in (parse_from_links, parse_from_json_ld, parse_from_regex):
+        parsed.update(parser(html, base_url))
     if parsed:
         return parsed
     return parse_iln_fallback(html, base_url)
@@ -175,7 +243,14 @@ def main() -> None:
     previous_state = load_state(STATE_FILE)
 
     if not current_items:
-        raise RuntimeError("No listings parsed from target page.")
+        warning = "Uyari: hedef sayfadan ilan parse edilemedi; bu kosu atlandi."
+        print(warning)
+        if BOT_TOKEN and CHAT_ID:
+            try:
+                send_telegram(warning)
+            except Exception:
+                pass
+        return
 
     if not previous_state:
         save_state(STATE_FILE, current_items.values())
